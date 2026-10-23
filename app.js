@@ -209,13 +209,20 @@
   }
 
   // Backup and restore of the whole library as one JSON file.
+  function stampBackup() { try { localStorage.setItem("linernotes.lastBackup", String(Date.now())); } catch (e) {} }
+  function backupNote() {
+    var t = 0; try { t = Number(localStorage.getItem("linernotes.lastBackup")) || 0; } catch (e) {}
+    if (!t) return "No backup yet. Download one now and then, in case this device loses its data.";
+    var days = Math.floor((Date.now() - t) / 86400000);
+    return "Last backup: " + (days <= 0 ? "today" : days === 1 ? "yesterday" : days + " days ago") + ".";
+  }
   async function downloadBackup() {
     var data = JSON.stringify(Store.exportData());
     var name = "liner-notes-backup-" + UI.todayStr() + ".json";
     var dl = null;
     try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { dl = null; }
     if (dl) {
-      try { await dl.save({ filename: name, data: data }); toast("Backup ready"); }
+      try { await dl.save({ filename: name, data: data }); stampBackup(); toast("Backup ready"); }
       catch (e) { if (!e || e.code !== "declined") toast("Couldn't save the backup file"); }
       return;
     }
@@ -226,7 +233,7 @@
       a.href = url; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      toast("Backup ready");
+      stampBackup(); toast("Backup ready");
       return;
     } catch (e) { /* fall through to the clipboard */ }
     try { await navigator.clipboard.writeText(data); toast("Saving a file isn't available here, so the backup was copied. Paste it into a note."); }
@@ -267,6 +274,7 @@
         h("div", { class: "btns" },
           h("button", { class: "btn pri", type: "button", onclick: downloadBackup }, "Download backup"),
           h("label", { class: "btn" }, "Restore from file", input)),
+        h("p", { class: "hint", style: "margin:0", text: backupNote() }),
         h("p", { class: "hint", style: "margin:0", text: "Restoring adds anything missing and keeps whichever copy is newer. Nothing is deleted." })));
   }
 
@@ -594,6 +602,17 @@
     S: S, h: h, go: go, goBack: goBack, songRow: songRow, setTab: setTab, render: render, toast: toast, top: top, twoStep: twoStep, bindField: bindField,
     removeItem: removeItem, countInput: countInput, durationInput: durationInput, dateInput: dateInput, footer: footer, historyBlock: historyBlock, chartBlock: chartBlock, coverPicker: coverPicker, albumOf: albumOf, tracksOf: tracksOf, rememberArtist: rememberArtist, syncText: syncText, updateStatus: updateStatus, app: app, bar: bar,
     sheetRoot: sheetRoot,
-    start: function () { Store.init(); render(); }
+    start: function () {
+      Store.init();
+      // Ask the browser not to clear our data when the phone is short on space.
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+      var last = 0;
+      document.addEventListener("linernotes-storage-error", function () {
+        if (Date.now() - last < 15000) return;
+        last = Date.now();
+        toast("Couldn't save on this device. Storage is full. Download a backup now.");
+      });
+      render();
+    }
   };
 })();

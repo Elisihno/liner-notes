@@ -14,15 +14,57 @@
   var dirty = new Set();
   var removed = new Set();
 
+  var IMG = "linernotes.img.";
+  var savedImgs = new Set();
+  var failedOnce = false;
+
   function lsRead() {
+    var list = [];
     try {
       var raw = localStorage.getItem(LS_KEY);
-      var arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) { return []; }
+      if (raw) {
+        try {
+          var arr = JSON.parse(raw);
+          if (Array.isArray(arr)) list = arr;
+        } catch (e) {
+          // Unreadable: keep the raw text so nothing is lost, then carry on.
+          try { localStorage.setItem(LS_KEY + ".corrupt." + Date.now(), raw); } catch (e2) {}
+        }
+      }
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(IMG) === 0) {
+          try { var im = JSON.parse(localStorage.getItem(k)); if (im && im.id) { list.push(im); savedImgs.add(im.id); } } catch (e3) {}
+        }
+      }
+    } catch (e) {}
+    return list;
   }
+  function storageFailed(e) {
+    console.error("save failed", e);
+    failedOnce = true;
+    try { document.dispatchEvent(new CustomEvent("linernotes-storage-error")); } catch (e2) {}
+  }
+  // Text items go in one entry; every cover image gets its own, so typing never rewrites the pictures.
   function lsWrite() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(Array.from(items.values()))); } catch (e) {}
+    var ok = true;
+    try {
+      var text = [], imgIds = new Set();
+      items.forEach(function (it) {
+        if (it.kind === "image") {
+          imgIds.add(it.id);
+          if (!savedImgs.has(it.id)) {
+            try { localStorage.setItem(IMG + it.id, JSON.stringify(it)); savedImgs.add(it.id); } catch (e) { ok = false; storageFailed(e); }
+          }
+        } else text.push(it);
+      });
+      if (!ok) return false; // leave the previous copy untouched
+      localStorage.setItem(LS_KEY, JSON.stringify(text));
+      Array.from(savedImgs).forEach(function (id) {
+        if (!imgIds.has(id)) { try { localStorage.removeItem(IMG + id); } catch (e) {} savedImgs.delete(id); }
+      });
+    } catch (e) { storageFailed(e); return false; }
+    return true;
   }
   function emit() {
     subs.forEach(function (f) { try { f(); } catch (e) { console.error(e); } });
@@ -165,6 +207,7 @@
     },
     subscribe: function (fn) { subs.add(fn); return function () { subs.delete(fn); }; },
     status: function () { return status; },
-    cloud: function () { return !!col; }
+    cloud: function () { return !!col; },
+    storageFailed: function () { return failedOnce; }
   };
 })();
