@@ -76,7 +76,18 @@
       countsText(s).forEach(function (t) { counts.append(h("span", { text: t })); });
       counts.append(h("span", { id: "status", text: App.syncText() }));
     }
-    function grow() { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
+    function grow() {
+      // Resizing the box briefly shrinks the page, which made the view jump to the top. Keep the scroll position.
+      var y = window.pageXOffset !== undefined ? window.pageYOffset : 0;
+      var root = document.scrollingElement || document.documentElement;
+      var keep = root.scrollTop || y;
+      var h0 = ta.offsetHeight;
+      ta.style.height = "auto";
+      var h1 = ta.scrollHeight + 2;
+      if (h1 !== h0) ta.style.height = h1 + "px"; else ta.style.height = h0 + "px";
+      root.scrollTop = keep;
+      window.scrollTo(window.pageXOffset || 0, keep);
+    }
     ta.addEventListener("input", function () {
       s.lyrics = ta.value;
       Store.put(s);
