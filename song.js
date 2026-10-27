@@ -12,6 +12,37 @@
     App.goBack(S.tab);
   }
 
+  // Wrap the selected text in ** (bold) or * (italic); wrapping again takes it off.
+  function styleSelection(ta, mark) {
+    var text = ta.value, a = ta.selectionStart == null ? 0 : ta.selectionStart, b = ta.selectionEnd == null ? a : ta.selectionEnd;
+    if (a === b) { // no selection: use the word at the cursor
+      while (a > 0 && /[^\s*]/.test(text[a - 1])) a--;
+      while (b < text.length && /[^\s*]/.test(text[b])) b++;
+    }
+    while (a < b && /\s/.test(text[a])) a++;
+    while (b > a && /\s/.test(text[b - 1])) b--;
+    if (a === b) {
+      ta.value = text.slice(0, a) + mark + mark + text.slice(b);
+      ta.focus(); ta.setSelectionRange(a + mark.length, a + mark.length);
+      ta.dispatchEvent(new Event("input"));
+      return;
+    }
+    var nb = 0, na = 0;
+    while (text[a - 1 - nb] === "*") nb++;
+    while (text[b + na] === "*") na++;
+    var run = Math.min(nb, na), len = mark.length, on = len === 2 ? run >= 2 : run % 2 === 1;
+    var start = a, end = b;
+    if (on) {
+      ta.value = text.slice(0, a - len) + text.slice(a, b) + text.slice(b + len);
+      start = a - len; end = b - len;
+    } else {
+      ta.value = text.slice(0, a) + mark + text.slice(a, b) + mark + text.slice(b);
+      start = a + len; end = b + len;
+    }
+    ta.focus(); ta.setSelectionRange(start, end);
+    ta.dispatchEvent(new Event("input"));
+  }
+
   function insertSection(ta, name) {
     var text = ta.value;
     var pos = ta.selectionStart == null ? text.length : ta.selectionStart;
@@ -95,6 +126,20 @@
       paintCounts();
     });
 
+    function styleBtn(label, mark, name, cls) {
+      var btn = h("button", { class: "chip " + cls, type: "button", "aria-label": name, title: name }, label);
+      btn.addEventListener("pointerdown", function (e) { e.preventDefault(); }); // keep the keyboard and selection
+      btn.addEventListener("click", function () { styleSelection(ta, mark); });
+      return btn;
+    }
+    var styleBar = h("div", { class: "fmt" }, styleBtn("B", "**", "Bold", "fb"), styleBtn("I", "*", "Italic", "fi"));
+    ta.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      var k = e.key.toLowerCase();
+      if (k === "b") { e.preventDefault(); styleSelection(ta, "**"); }
+      else if (k === "i") { e.preventDefault(); styleSelection(ta, "*"); }
+    });
+
     var chips = h("div", { class: "chips" }, SECTIONS.map(function (n) {
       return h("button", { class: "chip", type: "button", onclick: function () { insertSection(ta, n); } }, "+ " + n);
     }));
@@ -122,6 +167,7 @@
       App.historyBlock(s, "streams", "streamsLog", "Streams history"),
       coverBlock,
       h("div", null, h("span", { class: "lbl", text: "Insert a section" }), chips),
+      h("div", null, h("span", { class: "lbl", text: "Style the selected text" }), styleBar),
       ta, counts,
       App.rhymePanel(ta),
       h("details", { class: "more" }, h("summary", { text: "About and credits" }),
@@ -251,7 +297,7 @@
       h("button", { class: "btn sm", type: "button", onclick: function () {
         var done = function () { App.toast("Lyrics copied"); };
         var fail = function () { App.toast("Copy isn't available here"); };
-        try { navigator.clipboard.writeText(s.lyrics || "").then(done, fail); } catch (e) { fail(); }
+        try { navigator.clipboard.writeText(UI.plain(s.lyrics || "")).then(done, fail); } catch (e) { fail(); }
       } }, "Copy"));
     wrap.append(lyricHead);
 
@@ -267,7 +313,7 @@
         sec.lines.forEach(function (line) {
           if (!line.trim()) { lyr.append(h("div", { class: "ln gap", "aria-hidden": "true" })); return; }
           var has = !!findNote(s, UI.lineKey(line));
-          var b = h("button", { class: "ln" + (has ? " has" : ""), type: "button", text: line.trim() });
+          var b = h("button", { class: "ln" + (has ? " has" : ""), type: "button" }, UI.richNodes(line.trim()));
           b.addEventListener("click", function () { openSheet(s, line, b); });
           lyr.append(b);
         });

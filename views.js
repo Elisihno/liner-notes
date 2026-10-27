@@ -326,8 +326,24 @@
     return svg;
   }
 
+  // Annotations are matched by the plain text of a line, so bold and italic marks don't matter.
+  function plain(text) { return String(text == null ? "" : text).replace(/\*{1,3}/g, ""); }
   function lineKey(text) {
-    return String(text).trim().toLowerCase().replace(/\s+/g, " ");
+    return plain(text).trim().toLowerCase().replace(/\s+/g, " ");
+  }
+  // **bold**, *italic*, ***both*** become real elements. Anything unmatched stays as typed.
+  function richNodes(text) {
+    var out = [], re = /(\*\*\*|\*\*|\*)(?=\S)(.+?)\1/g, last = 0, m, s = String(text);
+    while ((m = re.exec(s))) {
+      if (m.index > last) out.push(document.createTextNode(s.slice(last, m.index)));
+      var inner = document.createTextNode(m[2]), el;
+      if (m[1] === "***") { el = document.createElement("strong"); var em = document.createElement("em"); em.append(inner); el.append(em); }
+      else { el = document.createElement(m[1] === "**" ? "strong" : "em"); el.append(inner); }
+      out.push(el);
+      last = re.lastIndex;
+    }
+    if (last < s.length) out.push(document.createTextNode(s.slice(last)));
+    return out;
   }
 
   // [Verse 1] style headers start a section; blank lines become gaps.
@@ -377,5 +393,5 @@
   }
   function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
 
-  window.UI = { h: h, cover: cover, coverFor: coverFor, processImage: processImage, avatarFor: avatarFor, parseCount: parseCount, parseDuration: parseDuration, fmtDuration: fmtDuration, lineChart: lineChart, todayStr: todayStr, fmtDay: fmtDay, parseDay: parseDay, releaseText: releaseText, releaseYear: releaseYear, releaseSort: releaseSort, nameKey: nameKey, fmtCompact: fmtCompact, fmtFull: fmtFull, featNames: featNames, byline: byline, coverIndexFor: coverIndexFor, lineKey: lineKey, parseLyrics: parseLyrics, stats: stats, fmtDate: fmtDate, plural: plural };
+  window.UI = { h: h, cover: cover, coverFor: coverFor, processImage: processImage, avatarFor: avatarFor, parseCount: parseCount, parseDuration: parseDuration, fmtDuration: fmtDuration, lineChart: lineChart, todayStr: todayStr, fmtDay: fmtDay, parseDay: parseDay, releaseText: releaseText, releaseYear: releaseYear, releaseSort: releaseSort, nameKey: nameKey, fmtCompact: fmtCompact, fmtFull: fmtFull, featNames: featNames, byline: byline, coverIndexFor: coverIndexFor, lineKey: lineKey, plain: plain, richNodes: richNodes, parseLyrics: parseLyrics, stats: stats, fmtDate: fmtDate, plural: plural };
 })();
