@@ -12,51 +12,6 @@
     App.goBack(S.tab);
   }
 
-  // Wrap the selected text in ** (bold) or * (italic); wrapping again takes it off.
-  function styleSelection(ta, mark) {
-    var text = ta.value, a = ta.selectionStart == null ? 0 : ta.selectionStart, b = ta.selectionEnd == null ? a : ta.selectionEnd;
-    if (a === b) { // no selection: use the word at the cursor
-      while (a > 0 && /[^\s*]/.test(text[a - 1])) a--;
-      while (b < text.length && /[^\s*]/.test(text[b])) b++;
-    }
-    while (a < b && /\s/.test(text[a])) a++;
-    while (b > a && /\s/.test(text[b - 1])) b--;
-    if (a === b) {
-      ta.value = text.slice(0, a) + mark + mark + text.slice(b);
-      ta.focus(); ta.setSelectionRange(a + mark.length, a + mark.length);
-      ta.dispatchEvent(new Event("input"));
-      return;
-    }
-    var nb = 0, na = 0;
-    while (text[a - 1 - nb] === "*") nb++;
-    while (text[b + na] === "*") na++;
-    var run = Math.min(nb, na), len = mark.length, on = len === 2 ? run >= 2 : run % 2 === 1;
-    var start = a, end = b;
-    if (on) {
-      ta.value = text.slice(0, a - len) + text.slice(a, b) + text.slice(b + len);
-      start = a - len; end = b - len;
-    } else {
-      ta.value = text.slice(0, a) + mark + text.slice(a, b) + mark + text.slice(b);
-      start = a + len; end = b + len;
-    }
-    ta.focus(); ta.setSelectionRange(start, end);
-    ta.dispatchEvent(new Event("input"));
-  }
-
-  function insertSection(ta, name) {
-    var text = ta.value;
-    var pos = ta.selectionStart == null ? text.length : ta.selectionStart;
-    var label = name;
-    if (name === "Verse") label = "Verse " + ((text.match(/^\s*\[Verse\b/gim) || []).length + 1);
-    var before = text.slice(0, pos), after = text.slice(pos);
-    var lead = before.length === 0 ? "" : (/\n\n$/.test(before) ? "" : (/\n$/.test(before) ? "\n" : "\n\n"));
-    var ins = lead + "[" + label + "]\n";
-    ta.value = before + ins + after;
-    var c = (before + ins).length;
-    ta.focus();
-    ta.setSelectionRange(c, c);
-    ta.dispatchEvent(new Event("input"));
-  }
 
   function countsText(s) {
     var st = UI.stats(s.lyrics);
@@ -98,50 +53,20 @@
     }
     paintCover();
 
-    var ta = h("textarea", { class: "ta", id: "sLyrics", spellcheck: "false",autocapitalize: "sentences", "aria-label": "Lyrics",
-      placeholder: "[Verse 1]\nStart writing here…" });
-    ta.value = s.lyrics || "";
+    var counts = h("div", { class: "counts" });
+    var ed = App.richEditor(s.lyrics || "", function (text) {
+      s.lyrics = text;
+      Store.put(s);
+      paintCounts();
+    }, { id: "sLyrics", label: "Lyrics", placeholder: "[Verse 1]\nStart writing here…" });
     var counts = h("div", { class: "counts" });
     function paintCounts() {
       counts.textContent = "";
       countsText(s).forEach(function (t) { counts.append(h("span", { text: t })); });
       counts.append(h("span", { id: "status", text: App.syncText() }));
     }
-    function grow() {
-      // Resizing the box briefly shrinks the page, which made the view jump to the top. Keep the scroll position.
-      var y = window.pageXOffset !== undefined ? window.pageYOffset : 0;
-      var root = document.scrollingElement || document.documentElement;
-      var keep = root.scrollTop || y;
-      var h0 = ta.offsetHeight;
-      ta.style.height = "auto";
-      var h1 = ta.scrollHeight + 2;
-      if (h1 !== h0) ta.style.height = h1 + "px"; else ta.style.height = h0 + "px";
-      root.scrollTop = keep;
-      window.scrollTo(window.pageXOffset || 0, keep);
-    }
-    ta.addEventListener("input", function () {
-      s.lyrics = ta.value;
-      Store.put(s);
-      grow();
-      paintCounts();
-    });
-
-    function styleBtn(label, mark, name, cls) {
-      var btn = h("button", { class: "chip " + cls, type: "button", "aria-label": name, title: name }, label);
-      btn.addEventListener("pointerdown", function (e) { e.preventDefault(); }); // keep the keyboard and selection
-      btn.addEventListener("click", function () { styleSelection(ta, mark); });
-      return btn;
-    }
-    var styleBar = h("div", { class: "fmt" }, styleBtn("B", "**", "Bold", "fb"), styleBtn("I", "*", "Italic", "fi"));
-    ta.addEventListener("keydown", function (e) {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      var k = e.key.toLowerCase();
-      if (k === "b") { e.preventDefault(); styleSelection(ta, "**"); }
-      else if (k === "i") { e.preventDefault(); styleSelection(ta, "*"); }
-    });
-
     var chips = h("div", { class: "chips" }, SECTIONS.map(function (n) {
-      return h("button", { class: "chip", type: "button", onclick: function () { insertSection(ta, n); } }, "+ " + n);
+      return h("button", { class: "chip", type: "button", onclick: function () { ed.insertSection(n); } }, "+ " + n);
     }));
 
     var about = h("textarea", { class: "field", id: "sAbout", rows: "4", placeholder: "What is this song about? This shows on the page." });
@@ -167,9 +92,9 @@
       App.historyBlock(s, "streams", "streamsLog", "Streams history"),
       coverBlock,
       h("div", null, h("span", { class: "lbl", text: "Insert a section" }), chips),
-      h("div", null, h("span", { class: "lbl", text: "Style the selected text" }), styleBar),
-      ta, counts,
-      App.rhymePanel(ta),
+      h("div", null, h("span", { class: "lbl", text: "Style" }), ed.bar),
+      ed.el, counts,
+      App.rhymePanel(ed),
       h("details", { class: "more" }, h("summary", { text: "About and credits" }),
         h("div", { class: "inner" },
           h("div", null, h("label", { class: "lbl", for: "sAbout" }, "About"), about),
@@ -180,7 +105,6 @@
         App.setTab(S.tab);
       }))));
     paintCounts();
-    requestAnimationFrame(grow);
     return el;
   }
 

@@ -81,25 +81,8 @@
     return { word: word, perfect: perfect, near: near, guessed: guessed };
   }
 
-  function lastWordAtCursor(ta) {
-    var v = ta.value, pos = ta.selectionStart == null ? v.length : ta.selectionStart;
-    var start = v.lastIndexOf("\n", pos - 1) + 1;
-    var end = v.indexOf("\n", pos); if (end < 0) end = v.length;
-    var m = v.slice(start, end).match(/([A-Za-z'’]+)[^A-Za-z'’]*$/);
-    return m ? m[1] : "";
-  }
-
-  function insertWord(ta, word) {
-    var v = ta.value, a = ta.selectionStart == null ? v.length : ta.selectionStart, b = ta.selectionEnd == null ? a : ta.selectionEnd;
-    var pre = v.slice(0, a), sp = pre && !/[\s(]$/.test(pre) ? " " : "";
-    ta.value = pre + sp + word + v.slice(b);
-    var p = (pre + sp + word).length;
-    ta.selectionStart = ta.selectionEnd = p;
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
   // The panel that sits under the lyrics box.
-  App.rhymePanel = function (ta) {
+  App.rhymePanel = function (ed) {
     var input = h("input", { class: "field", type: "text", placeholder: "Type a word, e.g. fire", autocomplete: "off", "aria-label": "Word to rhyme" });
     var out = h("div", { class: "rh-out" });
     var shown = { perfect: 60, near: 40 };
@@ -123,8 +106,8 @@
       if (!current) return;
       if (current.unknown) { out.append(h("p", { class: "hint", text: "No rhymes found for “" + current.word + "”." })); return; }
       out.append(h("p", { class: "hint", text: "Tap a word to add it to your lyrics at the cursor." + (current.guessed ? " “" + current.word + "” isn't in the dictionary, so these are based on how it ends." : "") }));
-      var g1 = group("Rhymes with " + current.word, current.perfect, "perfect", function (w) { insertWord(ta, w); });
-      var g2 = group("Near rhymes", current.near, "near", function (w) { insertWord(ta, w); });
+      var g1 = group("Rhymes with " + current.word, current.perfect, "perfect", function (w) { ed.insertText(w); });
+      var g2 = group("Near rhymes", current.near, "near", function (w) { ed.insertText(w); });
       if (g1) out.append(g1);
       if (g2) out.append(g2);
       if (!g1 && !g2) out.append(h("p", { class: "hint", text: "No rhymes found for “" + current.word + "”." }));
@@ -150,7 +133,7 @@
     input.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); clearTimeout(timer); search(input.value); } });
 
     var useLast = h("button", { class: "btn sm ghost", type: "button", onclick: function () {
-      var w = lastWordAtCursor(ta);
+      var w = ed.lastWord();
       if (w) { input.value = w; search(w); }
     } }, "Last word on this line");
 
