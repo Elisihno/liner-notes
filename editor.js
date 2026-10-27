@@ -1,5 +1,5 @@
 /* Lyrics editor: a plain-text box where bold and italic show as you type.
-   The song is still stored as text, with **bold** and *italic* marks, so the page view, search and backups keep working.
+   The song is still stored as text, with <b>bold</b> and <i>italic</i> marks, so the page view, search and backups keep working.
    Each line of the editor is one <div>. */
 (function () {
   var h = UI.h;
@@ -23,14 +23,15 @@
       return [b, i];
     }
     function mark(text, b, i) {
-      text = text.replace(/ /g, " ").replace(/​/g, "");
+      text = text.replace(/\u00a0/g, " ").replace(/\u200b/g, "");
       if (!text) return "";
       if (!b && !i) return text;
-      var m = b && i ? "***" : b ? "**" : "*";
       var lead = text.match(/^\s*/)[0], trail = text.match(/\s*$/)[0];
       var core = text.slice(lead.length, text.length - trail.length);
       if (!core) return text;
-      return lead + m + core + m + trail;
+      if (i) core = "<i>" + core + "</i>";
+      if (b) core = "<b>" + core + "</b>";
+      return lead + core + trail;
     }
     function walk(node, b, i) {
       var kids = node.childNodes;

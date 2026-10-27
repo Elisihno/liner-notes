@@ -326,23 +326,26 @@
     return svg;
   }
 
-  // Annotations are matched by the plain text of a line, so bold and italic marks don't matter.
-  function plain(text) { return String(text == null ? "" : text).replace(/\*{1,3}/g, ""); }
+  // Bold and italic are stored as <b>..</b> and <i>..</i> inside the lyrics text.
+  // (Asterisks are left alone, because lyrics use them to censor words.)
+  function plain(text) { return String(text == null ? "" : text).replace(/<\/?[bi]>/g, ""); }
   function lineKey(text) {
     return plain(text).trim().toLowerCase().replace(/\s+/g, " ");
   }
-  // **bold**, *italic*, ***both*** become real elements. Anything unmatched stays as typed.
   function richNodes(text) {
-    var out = [], re = /(\*\*\*|\*\*|\*)(?=\S)(.+?)\1/g, last = 0, m, s = String(text);
-    while ((m = re.exec(s))) {
-      if (m.index > last) out.push(document.createTextNode(s.slice(last, m.index)));
-      var inner = document.createTextNode(m[2]), el;
-      if (m[1] === "***") { el = document.createElement("strong"); var em = document.createElement("em"); em.append(inner); el.append(em); }
-      else { el = document.createElement(m[1] === "**" ? "strong" : "em"); el.append(inner); }
-      out.push(el);
-      last = re.lastIndex;
-    }
-    if (last < s.length) out.push(document.createTextNode(s.slice(last)));
+    var out = [];
+    (function build(s, into) {
+      var re = /<(b|i)>([\s\S]*?)<\/\1>/g, last = 0, m;
+      while ((m = re.exec(s))) {
+        if (m.index > last) into.push(document.createTextNode(s.slice(last, m.index)));
+        var el = document.createElement(m[1] === "b" ? "strong" : "em"), kids = [];
+        build(m[2], kids);
+        kids.forEach(function (k) { el.append(k); });
+        into.push(el);
+        last = re.lastIndex;
+      }
+      if (last < s.length) into.push(document.createTextNode(s.slice(last)));
+    })(String(text), out);
     return out;
   }
 
