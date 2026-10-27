@@ -1,5 +1,5 @@
 // Caches the app so it opens offline. Bump VERSION when you change any file.
-const VERSION="v6";
+const VERSION="v7";
 const FILES=["./","index.html","store.js","views.js","app.js","artist.js","rhyme.js","song.js","editor.js","rhymedata.js","icon.svg","icon-192.png","icon-512.png","apple-touch-icon.png","manifest.webmanifest"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==VERSION).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

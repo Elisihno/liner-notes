@@ -209,11 +209,18 @@
 
     function styleButton(label, cmd, name, cls) {
       var btn = h("button", { class: "chip " + cls, type: "button", "aria-label": name, title: name, "aria-pressed": "false" }, label);
-      // Keep the keyboard open and the selection where it is.
-      ["pointerdown", "mousedown", "touchstart"].forEach(function (ev) {
-        btn.addEventListener(ev, function (e) { if (e.cancelable) e.preventDefault(); }, { passive: false });
+      // Act on the press itself. Cancelling touchstart would stop the tap from becoming a click on iPhone.
+      var last = 0;
+      btn.addEventListener("pointerdown", function (e) {
+        if (e.cancelable) e.preventDefault(); // keep the selection where it is
+        last = Date.now();
+        toggle(cmd);
       });
-      btn.addEventListener("click", function () { toggle(cmd); });
+      btn.addEventListener("mousedown", function (e) { if (e.cancelable) e.preventDefault(); });
+      btn.addEventListener("click", function (e) {
+        if (Date.now() - last < 600) return; // already handled by the press
+        toggle(cmd); // keyboard or assistive tech
+      });
       buttons[cmd] = btn;
       return btn;
     }
